@@ -1,0 +1,3 @@
+python -m http.server
+
+web: http://localhost:8000/index.html

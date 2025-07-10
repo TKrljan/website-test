@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TOMO</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.css" rel="stylesheet">
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; filter: grayscale(70%); }
+	
+	  .maplibregl-popup-content {
+    background: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+  
+  
+	  .maplibregl-ctrl-group > button {
+	  width: 50px;
+	  height: 50px;
+	  font-size: 24px;
+	}
+
+	.maplibregl-ctrl-icon {
+	  background-size: 28px 28px !important;
+	}
+  
+    #search {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: width 0.3s ease, border-radius 0.3s ease, padding 0.3s ease;
+      overflow: hidden;
+    }
+    #search input {
+      display: none;
+      width: 180px;
+      padding: 10px;
+      border: none;
+      font-size: 16px;
+      outline: none;
+      flex-grow: 1;
+    }
+    #search-button {
+      cursor: pointer;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #search-button img {
+      width: 20px;
+      height: 20px;
+      object-fit: contain;
+      filter: brightness(0) invert(0.5);
+    }
+    #search.expanded {
+      width: 250px;
+      border-radius: 25px;
+      justify-content: start;
+      padding-left: 10px;
+    }
+    #search.expanded input { display: block; }
+    #coords {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: white;
+      padding: 5px;
+      font-family: sans-serif;
+      font-size: 20px;
+      border-radius: 3px;
+      z-index: 2;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    }
+    #layerControl {
+      position: absolute;
+      bottom: 40px;
+      right: 20px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+      font-family: 'Segoe UI', sans-serif;
+      min-width: 180px;
+    }
+    #layerControl strong {
+      display: block;
+      margin-bottom: 12px;
+      font-size: 25px;
+    }
+    #layerControl label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 25px;
+      padding: 2px 8px;
+      border-radius: 2px;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+    #layerControl label:hover {
+      background-color: rgba(0, 123, 255, 0.12);
+      cursor: pointer;
+      transform: translateX(2px);
+    }
+    #layerControl input[type="checkbox"] {
+      transform: scale(1.5);
+      margin-right: 8px;
+      cursor: pointer;
+    }
+    #suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 1001;
+      background: white;
+      border-radius: 12px;
+      list-style: none;
+      margin: 4px 0 0 0;
+      padding: 4px 0;
+      border: 1px solid #ddd;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      max-height: 250px;
+      overflow-y: auto;
+      font-family: "Segoe UI", sans-serif;
+    }
+    #suggestions li {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    #suggestions li:hover {
+      background-color: #f1f3f4;
+    }
+    .suggestion-icon {
+      font-size: 18px;
+      margin-right: 12px;
+      color: #555;
+    }
+    .suggestion-text {
+      flex-grow: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+<body>
+
+<div id="search" class="collapsed">
+  <div id="search-button"><img src="magnifier.png" alt="Search" /></div>
+  <div style="position: relative; flex-grow: 1;">
+    <input type="text" id="searchInput" placeholder="Search location..." autocomplete="off" />
+    <ul id="suggestions"></ul>
+  </div>
+</div>
+
+<div id="map"></div>
+<div id="layerControl">
+  <strong>Slojevi</strong><br/>
+  <label><input type="checkbox" id="city-toggle" checked> Administrativna granica</label><br/>
+  <label><input type="checkbox" id="odbori-toggle" checked> Mjesni odbori</label><br/>
+  <label><input type="checkbox" id="buildings-toggle" checked> Zgrade</label><br/>
+  <label><input type="checkbox" id="obilaznica-toggle" checked> Obilaznica</label><br/>
+  <label><input type="checkbox" id="counters-toggle" checked> Brojači</label>
+</div>
+<div id="coords">
+  <div><strong>CRS:</strong> WGS84 (EPSG:4326)</div>
+  <div id="coord-values">Lon: 0, Lat: 0</div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@3.3.1/dist/maplibre-gl.js"></script>
+<script>
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://api.maptiler.com/maps/0197d552-c556-74f2-b893-005927a10f2a/style.json?key=iENB7tg4G8j6bQMMuWrC',
+    center: [14.43331, 45.33958],
+    zoom: 13
+  });
+
+  map.addControl(new maplibregl.NavigationControl());
+
+const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+
+  
+map.on('mousemove', 'counters-points', (e) => {
+  // 🧠 Only block hover if a persistent popup is actually active
+  if (activePopup) return;
+
+  map.getCanvas().style.cursor = 'pointer';
+  const id = e.features[0].properties.id || 'Bez ID-a';
+
+  popup
+    .setLngLat(e.lngLat)
+    .setHTML(`<div style="
+      font-size: 20px;
+      padding: 15px 20px;
+      background: white;
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      white-space: nowrap;
+      width: fit-content;
+      font-family: 'Segoe UI', sans-serif';
+    "><strong>ID:</strong> ${id}</div>`)
+    .addTo(map);
+});
+
+map.on('mouseleave', 'counters-points', () => {
+  map.getCanvas().style.cursor = '';
+  if (!activePopup) popup.remove();  // only remove if no click popup
+});
+
+
+
+
+// Click Popup (stays open)
+let activePopup = null;
+let activeCounterId = null;
+
+// 🧠 Function to load the latest data from CSV and update popup
+function updatePopupData(counterId, coordinates) {
+  const sanitizedId = counterId.replace(/[:\/\\]/g, '_');
+  const csvPath = `pool-data-from-server/${sanitizedId}_data.csv`;
+
+  fetch(csvPath)
+    .then(response => response.text())
+    .then(csvText => {
+      const lines = csvText.trim().split('\n');
+      const headers = lines[0].split(',');
+      const latestLine = lines[lines.length - 1].split(',');
+
+      const data = {};
+      headers.forEach((h, i) => {
+        const cleanKey = h.trim().replace(/\r/g, '');
+        data[cleanKey] = latestLine[i];
+      });
+
+      const popupHtml = `
+        <div style="
+          font-size: 20px;
+          padding: 15px 19px;
+          background: white;
+          border-radius: 10px;
+          width: fit-content;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+          max-width: 600px;
+          font-family: 'Segoe UI', sans-serif;
+        ">
+          <strong>ID:</strong> ${counterId}<br/>
+          <strong>Protok:</strong> ${data.TrafficFlow || 'N/A'}<br/>
+          <strong>Interval slijeđenja:</strong> ${data.TrafficHeadway || 'N/A'}<br/>
+          <strong>Brzina:</strong> ${data.TrafficSpeed || 'N/A'}<br/>
+          <strong>Gustoća:</strong> ${data.TrafficConcentration || 'N/A'}
+        </div>
+      `;
+
+      if (activePopup) {
+        activePopup.setHTML(popupHtml);
+      }
+    })
+    .catch(err => {
+      alert(`Greška u učitavanju podataka za ${counterId}`);
+      console.error(err);
+    });
+}
+
+// 🖱 Handle counter click – show popup and start live updates
+map.on('click', 'counters-points', (e) => {
+  // Always remove existing popup
+  if (activePopup) {
+    activePopup.remove();
+  }
+
+  popup.remove(); // remove hover popup if showing
+  popupOpen = true;
+
+  const coordinates = e.lngLat;
+  const props = e.features[0].properties;
+  const counterId = props.id;
+
+  activeCounterId = counterId;
+
+  // Important: closeOnClick = false allows popups to coexist with map interaction
+  activePopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false })
+    .setLngLat(coordinates)
+    .addTo(map);
+
+  updatePopupData(counterId, coordinates);
+
+  activePopup.on('close', () => {
+    popupOpen = false;
+    activePopup = null;
+    activeCounterId = null;
+  });
+});
+
+map.on('click', (e) => {
+  // Check if the click is NOT on a 'counters-points' feature
+  const features = map.queryRenderedFeatures(e.point, {
+    layers: ['counters-points']
+  });
+
+  if (features.length === 0 && activePopup) {
+    activePopup.remove();
+    popupOpen = false;
+    activePopup = null;
+    activeCounterId = null;
+  }
+});
+
+
+
+
+// 🔁 Auto-refresh popup every 30 seconds (if open)
+setInterval(() => {
+  if (activePopup && activeCounterId) {
+    updatePopupData(activeCounterId);
+  }
+}, 50000); // 30 seconds
+
+
+
+
+
+
+
+  map.on('load', () => {
+    fetch('city-boundaries.geojson').then(res => res.json()).then(data => {
+      map.addSource('city-boundaries', { type: 'geojson', data });
+      map.addLayer({ id: 'city-fill', type: 'fill', source: 'city-boundaries', paint: { 'fill-color': '#000', 'fill-opacity': 0.0 } });
+      map.addLayer({ id: 'city-outline', type: 'line', source: 'city-boundaries', paint: { 'line-color': '#000', 'line-width': 2 } });
+    });
+
+    fetch('mjesni-odbori.geojson').then(res => res.json()).then(data => {
+      map.addSource('mjesni-odbori', { type: 'geojson', data });
+      map.addLayer({ id: 'odbori-fill', type: 'fill', source: 'mjesni-odbori', paint: { 'fill-color': '#bab6b6', 'fill-opacity': 0.5 } });
+      map.addLayer({ id: 'odbori-outline', type: 'line', source: 'mjesni-odbori', paint: { 'line-color': '#003366', 'line-width': 1.5 } });
+    });
+
+    fetch('buildings.geojson').then(res => res.json()).then(data => {
+      map.addSource('buildings', { type: 'geojson', data });
+      map.addLayer({ id: 'buildings-fill', type: 'fill', source: 'buildings', paint: { 'fill-color': '#4d4d4d', 'fill-opacity': 0.2 } });
+      map.addLayer({ id: 'buildings-outline', type: 'line', source: 'buildings', paint: { 'line-color': '#0b408a', 'line-width': 0.5 } });
+    });
+
+    fetch('obilaznica.geojson').then(res => res.json()).then(data => {
+      map.addSource('obilaznica', { type: 'geojson', data });
+      map.addLayer({ id: 'obilaznica-fill', type: 'fill', source: 'obilaznica', paint: { 'fill-color': '#525252', 'fill-opacity': 0.5 } });
+      map.addLayer({ id: 'obilaznica-outline', type: 'line', source: 'obilaznica', paint: { 'line-color': '#525252', 'line-width': 2 } });
+    });
+
+	fetch('counters.geojson').then(res => res.json()).then(data => {
+	  map.addSource('counters', { type: 'geojson', data });
+	  map.addLayer({
+		id: 'counters-points',
+		type: 'circle',
+		source: 'counters',
+		paint: {
+		  'circle-radius': 10,
+		  'circle-color': '#ff0000',
+		  'circle-stroke-color': '#ffcccc',
+		  'circle-stroke-width': 4
+		},
+		minzoom: 15,  // 👈 Counters will be visible only when zoom >= 13
+		maxzoom: 22   // 👈 Optional, usually default
+	  });
+	  map.moveLayer('counters-points'); // Ensures it's on top
+	});
+
+    // Layer toggles
+    function setupLayerToggle(layerIds, checkboxId) {
+      document.getElementById(checkboxId).addEventListener('change', (e) => {
+        const visibility = e.target.checked ? 'visible' : 'none';
+        layerIds.forEach(id => {
+          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility);
+        });
+      });
+    }
+
+    setupLayerToggle(['city-fill', 'city-outline'], 'city-toggle');
+    setupLayerToggle(['odbori-fill', 'odbori-outline'], 'odbori-toggle');
+    setupLayerToggle(['buildings-fill', 'buildings-outline'], 'buildings-toggle');
+    setupLayerToggle(['obilaznica-fill', 'obilaznica-outline'], 'obilaznica-toggle');
+    setupLayerToggle(['counters-points'], 'counters-toggle');
+  });
+
+  // Show coordinates
+  map.on('mousemove', e => {
+    const lon = e.lngLat.lng.toFixed(5);
+    const lat = e.lngLat.lat.toFixed(5);
+    document.getElementById('coord-values').innerText = `Lon: ${lon}, Lat: ${lat}`;
+  });
+
+  // Search expand/collapse
+  const searchBox = document.getElementById('search');
+  const searchInput = document.getElementById('searchInput');
+  const searchButton = document.getElementById('search-button');
+  const suggestionsBox = document.getElementById('suggestions');
+
+  searchButton.addEventListener('click', e => {
+    e.stopPropagation();
+    searchBox.classList.add('expanded');
+    searchInput.focus();
+  });
+
+  document.addEventListener('click', e => {
+    if (!searchBox.contains(e.target)) searchBox.classList.remove('expanded');
+  });
+
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const first = suggestionsBox.querySelector('li');
+      if (first) first.click();
+      else geocode(searchInput.value.trim());
+      suggestionsBox.innerHTML = '';
+      suggestionsBox.style.display = 'none';
+    }
+  });
+
+  function geocode(query) {
+    fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=1`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.features.length > 0) {
+          const coords = data.features[0].geometry.coordinates;
+          map.flyTo({ center: coords, zoom: 13 });
+        } else alert("Location not found.");
+      })
+      .catch(() => alert("Geocoding failed."));
+  }
+
+  // Autocomplete suggestions
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.trim();
+    if (query.length < 2) {
+      suggestionsBox.innerHTML = '';
+      suggestionsBox.style.display = 'none';
+      return;
+    }
+
+    fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`)
+      .then(res => res.json())
+      .then(data => {
+        suggestionsBox.innerHTML = '';
+        if (!data.features?.length) {
+          suggestionsBox.style.display = 'none';
+          return;
+        }
+
+        data.features.forEach(feature => {
+          const props = feature.properties;
+          const name = props.name || '';
+          const city = props.city || '';
+          const country = props.country || '';
+          const fullLabel = [name, city !== name ? city : null, country].filter(Boolean).join(', ');
+
+          const li = document.createElement('li');
+          li.innerHTML = `<span class="suggestion-icon">📍</span><span class="suggestion-text"><strong>${name}</strong>${city ? ', ' + city : ''}${country ? ', ' + country : ''}</span>`;
+
+          li.addEventListener('click', () => {
+            const coords = feature.geometry.coordinates;
+            map.flyTo({ center: coords, zoom: 13 });
+            searchInput.value = fullLabel;
+            suggestionsBox.innerHTML = '';
+            suggestionsBox.style.display = 'none';
+            searchBox.classList.remove('expanded');
+          });
+
+          suggestionsBox.appendChild(li);
+        });
+
+        suggestionsBox.style.display = 'block';
+      })
+      .catch(() => suggestionsBox.style.display = 'none');
+  });
+</script>
+</body>
+</html>
