@@ -382,7 +382,7 @@ map.touchZoomRotate.disableRotation(); // disables two-finger rotation on mobile
     Promise.all([
       fetch('website-test/city-boundaries.geojson').then(res => res.json()),
       fetch('mjesni-odbori.geojson').then(res => res.json()),
-      fetch('buildings.geojson').then(res => res.json()),
+      fetch('website-test/buildings.geojson').then(res => res.json()),
       fetch('obilaznica.geojson').then(res => res.json()),
       fetch('counters.geojson').then(res => res.json())
     ])
